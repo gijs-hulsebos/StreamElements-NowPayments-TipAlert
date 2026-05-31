@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stream Alert Overlay</title>
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <!-- Pusher JS -->
+    <script src="https://js.pusher.com/8.2.0/pusher.min.js"></script>
+    
+    <style>
+        /* 
+         * TRANSPARENCY: 
+         * Ensure the body is transparent for OBS/StreamYard Browser Source 
+         */
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: rgba(0, 0, 0, 0);
+            overflow: hidden; /* Prevent scrollbars */
+            width: 100vw;
+            height: 100vh;
+            font-family: 'Inter', sans-serif;
+        }
+
+        /* Container positioned at top-right */
+        #alert-container {
+            position: absolute;
+            top: 40px;
+            right: 40px;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 20px;
+        }
+
+        /* The Alert Card */
+        .alert-card {
+            background: rgba(15, 15, 20, 0.85);
+            backdrop-filter: blur(8px);
+            border: 2px solid #00ffcc;
+            border-radius: 12px;
+            padding: 24px 32px;
+            min-width: 300px;
+            box-shadow: 0 0 20px rgba(0, 255, 204, 0.4), inset 0 0 10px rgba(0, 255, 204, 0.2);
+            color: white;
+            transform: translateX(120%); /* Start off-screen */
+            opacity: 0;
+            will-change: transform, opacity;
+        }
+
+        /* Typography */
+        .alert-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: #00ffcc;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            margin: 0 0 8px 0;
+            text-shadow: 0 0 8px rgba(0, 255, 204, 0.6);
+        }
+
+        .alert-message {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin: 0;
+        }
+
+        .alert-amount {
+            color: #ff00ff;
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 900;
+            text-shadow: 0 0 10px rgba(255, 0, 255, 0.6);
+        }
+
+        /* Animations */
+        @keyframes slideInGlow {
+            0% {
+                transform: translateX(120%);
+                opacity: 0;
+            }
+            15% {
+                transform: translateX(-5%);
+                opacity: 1;
+            }
+            20% {
+                transform: translateX(0);
+                box-shadow: 0 0 40px rgba(0, 255, 204, 0.8), inset 0 0 20px rgba(0, 255, 204, 0.4);
+            }
+            25% {
+                box-shadow: 0 0 20px rgba(0, 255, 204, 0.4), inset 0 0 10px rgba(0, 255, 204, 0.2);
+            }
+            100% {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes slideOut {
+            0% {
+                transform: translateX(0);
+                opacity: 1;
+            }
+            100% {
+                transform: translateX(120%);
+                opacity: 0;
+            }
+        }
+
+        .animate-in {
+            animation: slideInGlow 0.8s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+        }
+
+        .animate-out {
+            animation: slideOut 0.6s cubic-bezier(0.5, 0, 0.75, 0) forwards;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="alert-container">
+        <!-- Alerts will be injected here -->
+    </div>
+
+    <!-- Audio element for notification sound -->
+    <!-- Replace src with your actual sound file URL -->
+    <audio id="notification-sound" src="https://cdn.pixabay.com/download/audio/2021/08/04/audio_0625c1539c.mp3?filename=success-1-6297.mp3" preload="auto"></audio>
+
+    <script>
+        // ==========================================
+        // CONFIGURATION
+        // ==========================================
+        // Replace with your Pusher App Key and Cluster
+        const PUSHER_KEY = 'YOUR_PUSHER_KEY';
+        const PUSHER_CLUSTER = 'YOUR_PUSHER_CLUSTER';
+
+        // Initialize Pusher
+        const pusher = new Pusher(PUSHER_KEY, {
+            cluster: PUSHER_CLUSTER
+        });
+
+        // Subscribe to the channel
+        const channel = pusher.subscribe('stream-alerts');
+
+        // Listen for the event
+        channel.bind('donation-received', function(data) {
+            console.log('Received donation event:', data);
+            triggerAlert(data.order_description, data.price_amount, data.price_currency);
+        });
+
+        // ==========================================
+        // ALERT LOGIC
+        // ==========================================
+        const alertContainer = document.getElementById('alert-container');
+        const sound = document.getElementById('notification-sound');
+
+        function triggerAlert(donorName, amount, currency) {
+            // 1. Play Sound
+            sound.currentTime = 0;
+            sound.play().catch(e => console.log("Audio play prevented by browser policy until interaction:", e));
+
+            // 2. Create Alert Element
+            const alertEl = document.createElement('div');
+            alertEl.className = 'alert-card animate-in';
+            
+            alertEl.innerHTML = `
+                <h2 class="alert-title">New Donation!</h2>
+                <p class="alert-message">
+                    <span style="color: #fff;">${donorName}</span> sent 
+                    <span class="alert-amount">${amount} ${currency}</span>
+                </p>
+            `;
+
+            // 3. Add to DOM
+            alertContainer.appendChild(alertEl);
+
+            // 4. Remove after 7 seconds
+            setTimeout(() => {
+                alertEl.classList.remove('animate-in');
+                alertEl.classList.add('animate-out');
+                
+                // Wait for exit animation to finish before removing from DOM
+                setTimeout(() => {
+                    alertEl.remove();
+                }, 600); // matches slideOut duration
+            }, 7000);
+        }
+
+        // ==========================================
+        // TEST FUNCTION
+        // ==========================================
+        // Run this in the browser console to test: testAlert()
+        window.testAlert = function() {
+            triggerAlert('CryptoKing99', '50.00', 'USDT');
+        };
+    </script>
+</body>
+</html>

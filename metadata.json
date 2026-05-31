@@ -1,0 +1,5 @@
+{
+  "name": "StreamAlerts Bridge \u0026 Overlay",
+  "description": "A custom donation alert system using NOWPayments and Pusher for StreamElements -\u003e OBS.",
+  "requestFramePermissions": []
+}
