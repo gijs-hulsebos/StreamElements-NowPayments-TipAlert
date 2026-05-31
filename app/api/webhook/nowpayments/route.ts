@@ -1,6 +1,19 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 
+export async function GET(req: Request) {
+  return NextResponse.json({ status: 'OK', message: 'Webhook endpoint is active. Please send a POST request with the NOWPayments IPN payload.' }, { status: 200 });
+}
+
+export async function OPTIONS(req: Request) {
+  return new NextResponse(null, {
+    status: 200,
+    headers: {
+      'Allow': 'GET, POST, OPTIONS'
+    }
+  });
+}
+
 export async function POST(req: Request) {
   try {
     const signature = req.headers.get('x-nowpayments-sig');
