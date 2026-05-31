@@ -5,13 +5,29 @@ export async function GET(req: Request) {
   return NextResponse.json({ status: 'OK', message: 'Webhook endpoint is active. Please send a POST request with the NOWPayments IPN payload.' }, { status: 200 });
 }
 
+export async function HEAD(req: Request) {
+  return new NextResponse(null, { status: 200 });
+}
+
 export async function OPTIONS(req: Request) {
   return new NextResponse(null, {
     status: 200,
     headers: {
-      'Allow': 'GET, POST, OPTIONS'
+      'Allow': 'GET, POST, OPTIONS, HEAD, PUT, PATCH, DELETE'
     }
   });
+}
+
+export async function PUT(req: Request) {
+  return NextResponse.json({ status: 'OK', message: 'PUT received.' }, { status: 200 });
+}
+
+export async function PATCH(req: Request) {
+  return NextResponse.json({ status: 'OK', message: 'PATCH received.' }, { status: 200 });
+}
+
+export async function DELETE(req: Request) {
+  return NextResponse.json({ status: 'OK', message: 'DELETE received.' }, { status: 200 });
 }
 
 export async function POST(req: Request) {
