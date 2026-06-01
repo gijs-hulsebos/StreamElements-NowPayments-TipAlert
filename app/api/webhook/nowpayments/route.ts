@@ -1,6 +1,20 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 
+export const dynamic = 'force-dynamic';
+
+export async function OPTIONS(request: Request) {
+  return new NextResponse(null, {
+    status: 200,
+    headers: {
+      'Allow': 'POST, OPTIONS',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, x-nowpayments-sig'
+    }
+  });
+}
+
 export async function POST(request: Request) {
   try {
     const signature = request.headers.get('x-nowpayments-sig');
@@ -8,7 +22,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Missing signature' }, { status: 400 });
     }
 
-    const body = await request.json();
+    const bodyText = await request.text();
+    let body;
+    try {
+      body = JSON.parse(bodyText);
+    } catch (e) {
+      return NextResponse.json({ error: 'Invalid JSON' }, { status: 400 });
+    }
 
     function sortObject(obj: any): any {
       return Object.keys(obj).sort().reduce((result: any, key: string) => {
