@@ -15,17 +15,11 @@ export async function OPTIONS(request: Request) {
   });
 }
 
-const ALLOWED_FIAT_CURRENCIES = [
-  'USD', 'EUR', 'GBP', 'CAD', 'AUD', 'BRL', 'RUB', 'ILS', 'SEK', 
-  'NOK', 'DKK', 'JPY', 'NZD', 'MXN', 'PHP', 'PLN', 'SGD', 'THB', 
-  'ZAR', 'CZK', 'HUF', 'KRW', 'TWD', 'HKD'
-];
-
 export async function POST(request: Request) {
   try {
     const signature = request.headers.get('x-nowpayments-sig');
     if (!signature) {
-      return NextResponse.json({ error: 'Missing signature' }, { status: 400 });
+      return NextResponse.json({ error: 'Missing signature' }, { status: 401 });
     }
 
     const bodyText = await request.text();
@@ -56,54 +50,28 @@ export async function POST(request: Request) {
     }
 
     if (body.payment_status === 'finished') {
-      const seAccountId = process.env.STREAMELEMENTS_ACCOUNT_ID;
-      const seJwtToken = process.env.STREAMELEMENTS_JWT_TOKEN;
+      const payload = {
+        id: body.payment_id,
+        username: body.order_description || 'Crypto Tipper',
+        amount: parseFloat(body.price_amount || '0'),
+        currency: (body.price_currency || 'USD').toUpperCase(),
+        cryptoDetails: `${body.pay_amount} ${(body.pay_currency || '').toUpperCase()}`
+      };
 
-      if (!seAccountId || !seJwtToken) {
-        console.error('Missing StreamElements configuration');
-        return NextResponse.json({ error: 'Configuration Error' }, { status: 500 });
-      }
-
-      // Raw Crypto Metrics
-      const rawPayAmount = body.pay_amount ? parseFloat(body.pay_amount) : 0;
-      const rawPayCurrency = (body.pay_currency || '').toUpperCase();
-
-      // Fiat tracking metrics from NOWPayments
-      const priceCurrency = (body.price_currency || '').toUpperCase();
-      let fiatAmount = body.price_amount ? parseFloat(body.price_amount) : 0;
-      let fiatCurrency = ALLOWED_FIAT_CURRENCIES.includes(priceCurrency) ? priceCurrency : 'USD';
-
-      // Fallback
-      if (fiatAmount === 0 || isNaN(fiatAmount)) {
-        fiatAmount = body.actually_paid_at_fiat ? parseFloat(body.actually_paid_at_fiat) : 0;
-      }
-
-      const donorName = body.order_description || 'Anonymous';
-      const tipMessage = `Tipped via NOWPayments (${rawPayAmount} ${rawPayCurrency})`;
-
-      const seResponse = await fetch(`https://api.streamelements.com/kappa/v2/tips/${seAccountId}`, {
+      const kvResponse = await fetch('https://kvdb.io/SolAlertCanvas99x/latest_tip', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${seJwtToken}`
+          'Content-Type': 'application/json'
         },
-        body: JSON.stringify({
-          provider: 'nowpayments',
-          amount: fiatAmount,
-          currency: fiatCurrency,
-          user: {
-            username: donorName
-          },
-          message: tipMessage
-        })
+        body: JSON.stringify(payload)
       });
 
-      if (!seResponse.ok) {
-        console.error('StreamElements API Error:', seResponse.status, await seResponse.text());
+      if (!kvResponse.ok) {
+        console.error('KVdb API Error:', kvResponse.status, await kvResponse.text());
       }
     }
 
-    return NextResponse.json({ status: 'OK' }, { status: 200 });
+    return NextResponse.json({ success: true }, { status: 200 });
   } catch (error) {
     console.error('Webhook error:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
