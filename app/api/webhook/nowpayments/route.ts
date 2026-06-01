@@ -15,6 +15,12 @@ export async function OPTIONS(request: Request) {
   });
 }
 
+const ALLOWED_FIAT_CURRENCIES = [
+  'USD', 'EUR', 'GBP', 'CAD', 'AUD', 'BRL', 'RUB', 'ILS', 'SEK', 
+  'NOK', 'DKK', 'JPY', 'NZD', 'MXN', 'PHP', 'PLN', 'SGD', 'THB', 
+  'ZAR', 'CZK', 'HUF', 'KRW', 'TWD', 'HKD'
+];
+
 export async function POST(request: Request) {
   try {
     const signature = request.headers.get('x-nowpayments-sig');
@@ -32,7 +38,7 @@ export async function POST(request: Request) {
 
     function sortObject(obj: any): any {
       return Object.keys(obj).sort().reduce((result: any, key: string) => {
-        result[key] = (obj[key] && typeof obj[key] === 'object') ? sortObject(obj[key]) : obj[key];
+        result[key] = (obj[key] && typeof obj[key] === 'object' && !Array.isArray(obj[key])) ? sortObject(obj[key]) : obj[key];
         return result;
       }, {});
     }
@@ -58,9 +64,22 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: 'Configuration Error' }, { status: 500 });
       }
 
-      const amount = parseFloat(body.pay_amount);
-      const currency = (body.pay_currency || 'USD').toUpperCase();
+      // Raw Crypto Metrics
+      const rawPayAmount = body.pay_amount ? parseFloat(body.pay_amount) : 0;
+      const rawPayCurrency = (body.pay_currency || '').toUpperCase();
+
+      // Fiat tracking metrics from NOWPayments
+      const priceCurrency = (body.price_currency || '').toUpperCase();
+      let fiatAmount = body.price_amount ? parseFloat(body.price_amount) : 0;
+      let fiatCurrency = ALLOWED_FIAT_CURRENCIES.includes(priceCurrency) ? priceCurrency : 'USD';
+
+      // Fallback
+      if (fiatAmount === 0 || isNaN(fiatAmount)) {
+        fiatAmount = body.actually_paid_at_fiat ? parseFloat(body.actually_paid_at_fiat) : 0;
+      }
+
       const donorName = body.order_description || 'Anonymous';
+      const tipMessage = `Tipped via NOWPayments (${rawPayAmount} ${rawPayCurrency})`;
 
       const seResponse = await fetch(`https://api.streamelements.com/kappa/v2/tips/${seAccountId}`, {
         method: 'POST',
@@ -70,12 +89,12 @@ export async function POST(request: Request) {
         },
         body: JSON.stringify({
           provider: 'nowpayments',
-          amount: amount,
-          currency: currency,
+          amount: fiatAmount,
+          currency: fiatCurrency,
           user: {
             username: donorName
           },
-          message: 'Donation received via NOWPayments'
+          message: tipMessage
         })
       });
 
